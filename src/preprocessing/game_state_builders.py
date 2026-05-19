@@ -60,51 +60,92 @@ def build_single_game_state(row: pd.Series, cumulative_stats: dict) -> dict:
     return state
 
 
-def create_game_states(shots_df: pd.DataFrame) -> pd.DataFrame:
+def create_game_states(shots: pd.DataFrame) -> pd.DataFrame:
     """
-    Transform shot-level data into game state snapshots.
-
-    Args:
-        shots_df: Cleaned shots dataframe
-
-    Returns:
-        DataFrame with one row per game state snapshot
+    Transform raw shots into game state snapshots.
+    Creates missing derived columns in sequence.
     """
-    shots_df = shots_df.sort_values(["game_id", "game_seconds_elapsed"])
-
-    states = []
-
-    for game_id, game_group in shots_df.groupby("game_id"):
-        game_group = game_group.reset_index(drop=True)
-
-        # Add rolling windows for this game
-        game_group = add_rolling_windows(game_group)
-
-        # Build states
-        cumulative_stats = {
-            "home_xg": 0.0,
-            "away_xg": 0.0,
-            "home_shots": 0,
-            "away_shots": 0,
-        }
-        home_team = game_group.iloc[0]["home_team_code"]
-
-        for idx, row in game_group.iterrows():
-            # Update cumulative stats
-            if row["team"] == home_team:
-                cumulative_stats["home_xg"] += row["x_goal"]
-                cumulative_stats["home_shots"] += 1
-            else:
-                cumulative_stats["away_xg"] += row["x_goal"]
-                cumulative_stats["away_shots"] += 1
-
-            # Build state
-            state = build_single_game_state(row, cumulative_stats)
-            states.append(state)
-
-    result = pd.DataFrame(states)
-
-    # Ensure column order
-    result = result[GAME_STATE_COLUMNS]
-
-    return result
+    import numpy as np
+    
+    df = shots.copy()
+    df = df.sort_values(['game_id', 'time_elapsed'])
+    
+    # 1. CREATE SCORE DIFFERENTIAL (if missing)
+    if 'score_differential' not in df.columns:
+        df['score_differential'] = df['home_team_goals'] - df['away_team_goals']
+    
+    # 2. CREATE CUMULATIVE STATS
+    df['cumulative_home_shots'] = 0
+    df['cumulative_away_shots'] = 0
+    df['cumulative_home_xg'] = 0.0
+    df['cumulative_away_xg'] = 0.0
+    
+    for game_id in df['game_id'].unique():
+        game_mask = df['game_id'] == game_id
+        game_df = df.loc[game_mask].copy()
+        
+        home_team = game_df.iloc[0]['home_team_code']
+        away_team = game_df.iloc[0]['away_team_code']
+        
+        is_home = game_df['team'] == home_team
+        is_away = game_df['team'] == away_team
+        
+        # Cumulative shots
+        df.loc[game_mask, 'cumulative_home_shots'] = is_home.cumsum().values
+        df.loc[game_mask, 'cumulative_away_shots'] = is_away.cumsum().values
+        
+        # Cumulative xG
+        df.loc[game_mask, 'cumulative_home_xg'] = (is_home * game_df['x_goal']).cumsum().values
+        df.loc[game_mask, 'cumulative_away_xg'] = (is_away * game_df['x_goal']).cumsum().values
+    
+    # Differentials
+    df['xg_differential'] = df['cumulative_home_xg'] - df['cumulative_away_xg']
+    df['shot_differential'] = df['cumulative_home_shots'] - df['cumulative_away_shots']
+    
+    # 3. CREATE ROLLING FEATURES (last 2/5 minutes)
+    df['shots_last_2min_home'] = 0
+    df['shots_last_2min_away'] = 0
+    df['shots_last_5min_home'] = 0
+    df['shots_last_5min_away'] = 0
+    
+    for game_id in df['game_id'].unique():
+        game_mask = df['game_id'] == game_id
+        game_df = df.loc[game_mask].copy()
+        
+        home_team = game_df.iloc[0]['home_team_code']
+        away_team = game_df.iloc[0]['away_team_code']
+        
+        times = game_df['time_elapsed'].values
+        teams = game_df['team'].values
+        
+        for idx, (time, team) in enumerate(zip(times, teams)):
+            # Last 2 minutes (120 seconds)
+            mask_2min = (times >= time - 120) & (times <= time)
+            df.loc[game_mask, 'shots_last_2min_home'].iloc[idx] = np.sum(teams[mask_2min] == home_team)
+            df.loc[game_mask, 'shots_last_2min_away'].iloc[idx] = np.sum(teams[mask_2min] == away_team)
+            
+            # Last 5 minutes (300 seconds)
+            mask_5min = (times >= time - 300) & (times <= time)
+            df.loc[game_mask, 'shots_last_5min_home'].iloc[idx] = np.sum(teams[mask_5min] == home_team)
+            df.loc[game_mask, 'shots_last_5min_away'].iloc[idx] = np.sum(teams[mask_5min] == away_team)
+    
+    # 4. SELECT FINAL COLUMNS
+    final_columns = [
+        'game_id', 'shot_id', 'season', 'is_playoff_game', 'period',
+        'time_elapsed', 'game_seconds_elapsed', 'time_in_period_seconds',
+        'time_in_period_minutes', 'game_seconds_remaining',
+        'home_team_code', 'away_team_code', 'home_team_goals', 'away_team_goals',
+        'score_differential', 'strength_state', 'game_state',
+        'is_even_strength', 'is_power_play', 'is_empty_net', 'is_3v3',
+        'x_coord', 'y_coord', 'shot_distance', 'shot_angle',
+        'cumulative_home_xg', 'cumulative_away_xg', 'xg_differential',
+        'cumulative_home_shots', 'cumulative_away_shots', 'shot_differential',
+        'shots_last_2min_home', 'shots_last_2min_away',
+        'shots_last_5min_home', 'shots_last_5min_away',
+        'target_home_win'
+    ]
+    
+    # Only select columns that exist
+    cols_to_select = [col for col in final_columns if col in df.columns]
+    
+    return df[cols_to_select]

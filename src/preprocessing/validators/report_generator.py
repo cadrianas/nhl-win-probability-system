@@ -1,90 +1,125 @@
 """
-Aggregate validation results into a single report.
+Report generation for validation results (FIXED VERSION).
 
-Single responsibility: Generate clean validation reports.
+Handles numpy int64 and other non-JSON-serializable types.
 """
 
 import json
+import numpy as np
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, Any
+
+
+class NumpyEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles numpy types."""
+    
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+def convert_to_serializable(obj: Any) -> Any:
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    
+    Args:
+        obj: Any object (dict, list, numpy type, etc.)
+        
+    Returns:
+        JSON-serializable version of the object
+    """
+    if isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_serializable(item) for item in obj]
+    elif isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 
 def generate_validation_report(
-    checks: Dict[str, List[Dict]],
+    checks: Dict,
     stats: Dict,
-    extra_analysis: Dict = None,
-    output_path: Path = None,
-) -> None:
+    extra_analysis: Dict,
+    report_path: Path
+) -> Dict:
     """
-    Combine validation results into a clean JSON report.
-
+    Generate and save validation report.
+    
     Args:
-        checks: Dict of {check_name: [issues]}
-        stats: Dict of summary statistics
-        extra_analysis: Additional analysis results
-        output_path: Where to save JSON
+        checks: Dict of validation check results
+        stats: Summary statistics
+        extra_analysis: Extra analysis results
+        report_path: Path to save JSON report
+        
+    Returns:
+        Report dict
     """
     report = {
-        "summary": {
-            "total_games": stats.get("total_games", 0),
-            "total_states": stats.get("total_states", 0),
-            "home_win_rate": stats.get("home_win_rate", "N/A"),
-            "away_win_rate": stats.get("away_win_rate", "N/A"),
-            "regular_season_pct": stats.get("regular_season_pct", "N/A"),
-            "playoff_ot_pct": stats.get("playoff_ot_pct", "N/A"),
-            "rs_ot_pct": stats.get("rs_ot_pct", "N/A"),
-        },
-        "validation_results": {},
+        "validation_checks": checks,
+        "summary_stats": stats,
+        "extra_analysis": extra_analysis,
     }
-
-    # Add each check
-    for check_name, issues in checks.items():
-        report["validation_results"][check_name] = {
-            "passed": len(issues) == 0,
-            "issues_found": len(issues),
-            "details": issues[:10],  # Show first 10
-        }
-
-    # Add extra analysis if provided
-    if extra_analysis:
-        report["analysis"] = extra_analysis
-
-    # Write
-    if output_path:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w") as f:
-            json.dump(report, f, indent=2)
-        print(f"✅ Report saved to: {output_path}")
-
+    
+    # Convert all numpy types to native Python types
+    report = convert_to_serializable(report)
+    
+    # Save report
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(report_path, 'w') as f:
+        json.dump(report, f, indent=2, cls=NumpyEncoder)
+    
+    print(f"   Saved to: {report_path}")
+    
     return report
 
 
-def print_validation_summary(report: dict) -> None:
+def print_validation_summary(report: Dict) -> None:
     """
-    Pretty print validation report to console.
-
+    Print human-readable validation summary.
+    
     Args:
-        report: Report dict from generate_validation_report
+        report: Validation report dict
     """
     print("\n" + "=" * 60)
-    print("DATA VALIDATION SUMMARY")
+    print("VALIDATION SUMMARY")
     print("=" * 60)
-
-    summary = report.get("summary", {})
-    print(f"\nGames: {summary.get('total_games', 'N/A'):,}")
-    print(f"States: {summary.get('total_states', 'N/A'):,}")
-    print(f"Home Win Rate: {summary.get('home_win_rate', 'N/A')}")
-    print(f"Regular Season: {summary.get('regular_season_pct', 'N/A')}")
-    print(f"Playoff OT: {summary.get('playoff_ot_pct', 'N/A')}")
-    print(f"RS OT: {summary.get('rs_ot_pct', 'N/A')}")
-
-    print("\n" + "-" * 60)
-    print("VALIDATION CHECKS")
-    print("-" * 60)
-
-    results = report.get("validation_results", {})
-    for check_name, result in results.items():
-        status = "✅ PASS" if result["passed"] else "❌ FAIL"
-        print(f"{status}: {check_name} ({result['issues_found']} issues)")
-
+    
+    checks = report.get("validation_checks", {})
+    stats = report.get("summary_stats", {})
+    
+    # Print check results
+    print("\nValidation Checks:")
+    for check_name, result in checks.items():
+        if isinstance(result, dict):
+            status = result.get('status', 'UNKNOWN')
+            issues = result.get('issues', [])
+            
+            if status == 'OK':
+                print(f"  ✅ {check_name}: PASS")
+            elif status == 'SKIPPED':
+                print(f"  ⊘ {check_name}: SKIPPED")
+            elif status == 'WARNING':
+                print(f"  ⚠️  {check_name}: {len(issues)} issues")
+            else:
+                print(f"  ? {check_name}: {status}")
+    
+    # Print summary stats
+    if stats:
+        print("\nSummary Statistics:")
+        for key, value in stats.items():
+            # Format key nicely
+            key_display = key.replace('_', ' ').title()
+            print(f"  {key_display}: {value}")
+    
     print("\n" + "=" * 60)

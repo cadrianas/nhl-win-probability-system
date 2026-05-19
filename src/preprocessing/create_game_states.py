@@ -9,6 +9,11 @@ Orchestrates:
 """
 
 import pandas as pd
+import sys
+from pathlib import Path
+
+# Ensure project root is on the path so `src.*` imports resolve
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.utils.paths import DATA_PROCESSED
 from src.preprocessing.game_state_builders import create_game_states
