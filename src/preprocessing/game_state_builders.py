@@ -101,12 +101,13 @@ def create_game_states(shots: pd.DataFrame) -> pd.DataFrame:
         game_indices = df[game_mask].index  # Get actual indices
         game_df = df.loc[game_indices].copy()  # Use indices, not mask
         
-        home_team = game_df.iloc[0]['home_team_code']
-        away_team = game_df.iloc[0]['away_team_code']
+        # FIXED: 'team' column contains 'HOME' or 'AWAY', not team codes!
+        # Don't compare to home_team_code - that's 'TOR', 'BOS', etc.
+        # Instead, check if team is 'HOME' or 'AWAY'
         
         # Create boolean masks (these will have the correct indices)
-        is_home = game_df['team'] == home_team
-        is_away = game_df['team'] == away_team
+        is_home = game_df['team'] == 'HOME'
+        is_away = game_df['team'] == 'AWAY'
         
         # Compute cumulative values with proper indexing
         home_xg_values = (is_home * game_df['x_goal']).cumsum()
@@ -143,25 +144,23 @@ def create_game_states(shots: pd.DataFrame) -> pd.DataFrame:
         game_indices = df[game_mask].index
         game_df = df.loc[game_indices].copy()
         
-        home_team = game_df.iloc[0]['home_team_code']
-        away_team = game_df.iloc[0]['away_team_code']
-        
         times = game_df['time_elapsed'].values
         teams = game_df['team'].values
         
         # Vectorized approach for rolling windows
+        # Fixed: teams contain 'HOME' or 'AWAY', not team codes!
         for idx, (time, team) in enumerate(zip(times, teams)):
             actual_idx = game_indices[idx]  # Get the actual index in df
             
             # Last 2 minutes (120 seconds)
             mask_2min = (times >= time - 120) & (times <= time)
-            df.loc[actual_idx, 'shots_last_2min_home'] = np.sum(teams[mask_2min] == home_team)
-            df.loc[actual_idx, 'shots_last_2min_away'] = np.sum(teams[mask_2min] == away_team)
+            df.loc[actual_idx, 'shots_last_2min_home'] = np.sum(teams[mask_2min] == 'HOME')
+            df.loc[actual_idx, 'shots_last_2min_away'] = np.sum(teams[mask_2min] == 'AWAY')
             
             # Last 5 minutes (300 seconds)
             mask_5min = (times >= time - 300) & (times <= time)
-            df.loc[actual_idx, 'shots_last_5min_home'] = np.sum(teams[mask_5min] == home_team)
-            df.loc[actual_idx, 'shots_last_5min_away'] = np.sum(teams[mask_5min] == away_team)
+            df.loc[actual_idx, 'shots_last_5min_home'] = np.sum(teams[mask_5min] == 'HOME')
+            df.loc[actual_idx, 'shots_last_5min_away'] = np.sum(teams[mask_5min] == 'AWAY')
     
     print("   ✓ Rolling window features computed")
     

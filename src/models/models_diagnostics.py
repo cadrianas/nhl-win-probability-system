@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Config
 FEATURES_TRAIN_CSV = Path("data/processed/features_train.csv")
 FEATURES_TEST_CSV = Path("data/processed/features_test.csv")
-EXCLUDE_COLUMNS = {'game_id', 'shot_id', 'target_home_win'}
+EXCLUDE_COLUMNS = {'game_id_unique', 'shot_id', 'target_home_win'}
 
 def load_data():
     """Load Phase 2 features."""
@@ -134,8 +134,8 @@ def diagnose_data_leakage(train_df, test_df):
     logger.info("\n1. CHECKING FOR DUPLICATE GAMES")
     logger.info("-" * 100)
     
-    train_games = set(train_df['game_id'].unique())
-    test_games = set(test_df['game_id'].unique())
+    train_games = set(train_df['game_id_unique'].unique())
+    test_games = set(test_df['game_id_unique'].unique())
     overlap = train_games & test_games
     
     if len(overlap) > 0:

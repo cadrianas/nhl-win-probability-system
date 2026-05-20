@@ -9,7 +9,7 @@ Best Model: XGBoost
 METRICS COMPARISON
 ----------------------------------------------------------------------------------------------------
          log_loss  roc_auc  brier_score  accuracy
-XGBoost    0.6911   0.5031       0.2489    0.5405
+XGBoost    0.6927   0.5123       0.2496     0.538
 
 MODEL DETAILS
 ----------------------------------------------------------------------------------------------------
@@ -20,30 +20,31 @@ XGBoost:
   n_features: 23
   categorical_features: ['strength_state']
   hyperparameters: {'n_estimators': 500, 'learning_rate': 0.05, 'max_depth': 6, 'subsample': 0.8, 'colsample_bytree': 0.8, 'random_state': 42, 'eval_metric': 'logloss'}
-  top_5_features: [{'feature': 'f0', 'importance': 5274.0}, {'feature': 'f2', 'importance': 4240.0}, {'feature': 'f19', 'importance': 3154.0}, {'feature': 'f3', 'importance': 3109.0}, {'feature': 'f5', 'importance': 2948.0}]
+  top_5_features: [{'feature': 'f0', 'importance': 4217.0}, {'feature': 'f11', 'importance': 4118.0}, {'feature': 'f10', 'importance': 3908.0}, {'feature': 'f20', 'importance': 3006.0}, {'feature': 'f19', 'importance': 2565.0}]
 
 
 TOP FEATURES BY MODEL
 ----------------------------------------------------------------------------------------------------
      XGBoost
-f0    5274.0
-f2    4240.0
-f19   3154.0
-f3    3109.0
-f5    2948.0
-f8    1949.0
-f22   1104.0
-f4     973.0
-f12    732.0
-f18    588.0
-f10    348.0
-f9     313.0
-f14    143.0
-f11    110.0
-f16     63.0
-f1      46.0
-f21     36.0
-f13     15.0
-f17      1.0
+f0    4217.0
+f11   4118.0
+f10   3908.0
+f20   3006.0
+f19   2565.0
+f5    2286.0
+f2    2081.0
+f3    1211.0
+f4     646.0
+f6     606.0
+f22    522.0
+f12    276.0
+f18    251.0
+f14    173.0
+f7     119.0
+f8      98.0
+f21     55.0
+f16     43.0
+f9      39.0
+f1      38.0
 
 ====================================================================================================
