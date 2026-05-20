@@ -1,0 +1,107 @@
+"""
+Diagnose missing seasons/games - critical data issue
+"""
+
+import pandas as pd
+from pathlib import Path
+
+shots_path = Path("data/processed/shots_cleaned.parquet")
+
+if not shots_path.exists():
+    print(f"❌ {shots_path} not found")
+    exit(1)
+
+print("\n" + "=" * 100)
+print("CRITICAL: GAME COVERAGE ANALYSIS")
+print("=" * 100)
+
+shots = pd.read_parquet(shots_path)
+
+print(f"\nTotal rows: {len(shots):,}")
+print(f"Total unique games: {shots['game_id'].nunique():,}")
+print(f"Total unique seasons: {shots['season'].nunique():,}")
+
+print("\n" + "-" * 100)
+print("GAME_ID RANGE:")
+print("-" * 100)
+
+print(f"Min game_id: {shots['game_id'].min()}")
+print(f"Max game_id: {shots['game_id'].max()}")
+print(f"Unique game_id values: {shots['game_id'].nunique():,}")
+
+print("\n" + "-" * 100)
+print("SEASON COVERAGE:")
+print("-" * 100)
+
+print(f"Min season: {shots['season'].min()}")
+print(f"Max season: {shots['season'].max()}")
+print(f"Seasons present: {sorted(shots['season'].unique())}")
+
+print("\n" + "-" * 100)
+print("GAMES PER SEASON:")
+print("-" * 100)
+
+games_per_season = shots.groupby('season')['game_id'].nunique().sort_index()
+
+for season, count in games_per_season.items():
+    expected = 1312  # Regular season + some playoffs
+    pct = (count / expected) * 100
+    status = "✓" if count > 1000 else "✗ LOW"
+    print(f"Season {season}: {count:5d} games ({pct:6.1f}% of expected) {status}")
+
+print(f"\nTotal games across all seasons: {games_per_season.sum():,}")
+
+print("\n" + "-" * 100)
+print("ROWS PER SEASON:")
+print("-" * 100)
+
+shots_per_season = shots.groupby('season').size().sort_index()
+
+for season, count in shots_per_season.items():
+    avg_per_game = count / games_per_season[season]
+    print(f"Season {season}: {count:10,} rows | {avg_per_game:6.1f} shots/game")
+
+print("\n" + "-" * 100)
+print("CHECKING FOR DUPLICATE GAME_IDS ACROSS SEASONS:")
+print("-" * 100)
+
+# For each game_id, check if it appears in multiple seasons
+game_seasons = shots.groupby('game_id')['season'].nunique()
+duplicates = game_seasons[game_seasons > 1]
+
+if len(duplicates) > 0:
+    print(f"\n⚠️  WARNING: {len(duplicates):,} game_ids appear in MULTIPLE seasons!")
+    print("   This is likely a bug in the data or game_id encoding")
+    print("\n   Example duplicates:")
+    
+    for game_id in duplicates.head(10).index:
+        seasons_for_game = shots[shots['game_id'] == game_id]['season'].unique()
+        print(f"     game_id {game_id}: appears in seasons {sorted(seasons_for_game)}")
+else:
+    print(f"\n✓ No duplicate game_ids across seasons")
+
+print("\n" + "-" * 100)
+print("GAME_ID STRUCTURE ANALYSIS:")
+print("-" * 100)
+
+print("\nSample game_ids by season:")
+for season in sorted(shots['season'].unique())[:3]:
+    season_games = shots[shots['season'] == season]['game_id'].unique()
+    print(f"  Season {season}: {sorted(season_games)[:5]} ... {sorted(season_games)[-5:]}")
+
+print("\n" + "=" * 100)
+print("DIAGNOSIS:")
+print("=" * 100)
+
+if games_per_season.sum() < 5000:
+    print(f"\n❌ CRITICAL ISSUE: Only {games_per_season.sum():,} games found")
+    print(f"   Expected: ~{1312 * 12:,} games for 12 seasons")
+    print(f"\n   Possible causes:")
+    print(f"   1. Data was only downloaded for a few seasons (not 2014-2025)")
+    print(f"   2. game_id is being duplicated across seasons")
+    print(f"   3. Most seasons are missing from the dataset")
+    print(f"\n   ACTION: Check your original MoneyPuck data download")
+else:
+    print(f"\n✓ Data coverage looks reasonable")
+
+print("=" * 100)

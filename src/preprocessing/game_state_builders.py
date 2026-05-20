@@ -1,10 +1,11 @@
 """
 Assemble game states from cleaned shots and utility functions.
 
-This orchestrates the transformation from shot-level to game-state-level data.
+FIXED VERSION: Proper indexing for cumulative xG calculation
 """
 
 import pandas as pd
+import numpy as np
 from src.preprocessing.continuous_time import create_time_features
 from src.preprocessing.strength_state import (
     add_strength_state_column,
@@ -64,53 +65,83 @@ def create_game_states(shots: pd.DataFrame) -> pd.DataFrame:
     """
     Transform raw shots into game state snapshots.
     Creates missing derived columns in sequence.
+    
+    FIXED: 
+    1. Use game_id_unique (truly unique across seasons) for grouping
+    2. Proper indexing for cumulative xG/shots calculation
     """
-    import numpy as np
     
     df = shots.copy()
-    df = df.sort_values(['game_id', 'time_elapsed'])
+    
+    # Use game_id_unique if available (newly fixed in Phase 1)
+    # Otherwise fall back to game_id (old broken version)
+    groupby_col = 'game_id_unique' if 'game_id_unique' in df.columns else 'game_id'
+    print(f"   Using '{groupby_col}' for grouping games")
+    
+    df = df.sort_values([groupby_col, 'time_elapsed']).reset_index(drop=True)
     
     # 1. CREATE SCORE DIFFERENTIAL (if missing)
     if 'score_differential' not in df.columns:
         df['score_differential'] = df['home_team_goals'] - df['away_team_goals']
     
-    # 2. CREATE CUMULATIVE STATS
+    # 2. CREATE CUMULATIVE STATS - FIXED VERSION
+    # Initialize columns
     df['cumulative_home_shots'] = 0
     df['cumulative_away_shots'] = 0
     df['cumulative_home_xg'] = 0.0
     df['cumulative_away_xg'] = 0.0
     
-    for game_id in df['game_id'].unique():
-        game_mask = df['game_id'] == game_id
-        game_df = df.loc[game_mask].copy()
+    print("   Computing cumulative xG and shots...")
+    
+    for i, game_id in enumerate(df[groupby_col].unique()):
+        if (i + 1) % 200 == 0:
+            print(f"   Processing game {i + 1}...")
+        
+        game_mask = df[groupby_col] == game_id
+        game_indices = df[game_mask].index  # Get actual indices
+        game_df = df.loc[game_indices].copy()  # Use indices, not mask
         
         home_team = game_df.iloc[0]['home_team_code']
         away_team = game_df.iloc[0]['away_team_code']
         
+        # Create boolean masks (these will have the correct indices)
         is_home = game_df['team'] == home_team
         is_away = game_df['team'] == away_team
         
-        # Cumulative shots
-        df.loc[game_mask, 'cumulative_home_shots'] = is_home.cumsum().values
-        df.loc[game_mask, 'cumulative_away_shots'] = is_away.cumsum().values
+        # Compute cumulative values with proper indexing
+        home_xg_values = (is_home * game_df['x_goal']).cumsum()
+        away_xg_values = (is_away * game_df['x_goal']).cumsum()
         
-        # Cumulative xG
-        df.loc[game_mask, 'cumulative_home_xg'] = (is_home * game_df['x_goal']).cumsum().values
-        df.loc[game_mask, 'cumulative_away_xg'] = (is_away * game_df['x_goal']).cumsum().values
+        home_shots_values = is_home.cumsum()
+        away_shots_values = is_away.cumsum()
+        
+        # Assign back using the same indices (this ensures alignment)
+        df.loc[game_indices, 'cumulative_home_xg'] = home_xg_values.values
+        df.loc[game_indices, 'cumulative_away_xg'] = away_xg_values.values
+        df.loc[game_indices, 'cumulative_home_shots'] = home_shots_values.values
+        df.loc[game_indices, 'cumulative_away_shots'] = away_shots_values.values
     
-    # Differentials
+    # Compute differentials
     df['xg_differential'] = df['cumulative_home_xg'] - df['cumulative_away_xg']
     df['shot_differential'] = df['cumulative_home_shots'] - df['cumulative_away_shots']
     
+    print("   ✓ Cumulative stats computed")
+    
     # 3. CREATE ROLLING FEATURES (last 2/5 minutes)
+    print("   Computing rolling window features...")
+    
     df['shots_last_2min_home'] = 0
     df['shots_last_2min_away'] = 0
     df['shots_last_5min_home'] = 0
     df['shots_last_5min_away'] = 0
     
-    for game_id in df['game_id'].unique():
-        game_mask = df['game_id'] == game_id
-        game_df = df.loc[game_mask].copy()
+    for i, game_id in enumerate(df[groupby_col].unique()):
+        if (i + 1) % 200 == 0:
+            print(f"   Processing game {i + 1}...")
+        
+        game_mask = df[groupby_col] == game_id
+        game_indices = df[game_mask].index
+        game_df = df.loc[game_indices].copy()
         
         home_team = game_df.iloc[0]['home_team_code']
         away_team = game_df.iloc[0]['away_team_code']
@@ -118,20 +149,25 @@ def create_game_states(shots: pd.DataFrame) -> pd.DataFrame:
         times = game_df['time_elapsed'].values
         teams = game_df['team'].values
         
+        # Vectorized approach for rolling windows
         for idx, (time, team) in enumerate(zip(times, teams)):
+            actual_idx = game_indices[idx]  # Get the actual index in df
+            
             # Last 2 minutes (120 seconds)
             mask_2min = (times >= time - 120) & (times <= time)
-            df.loc[game_mask, 'shots_last_2min_home'].iloc[idx] = np.sum(teams[mask_2min] == home_team)
-            df.loc[game_mask, 'shots_last_2min_away'].iloc[idx] = np.sum(teams[mask_2min] == away_team)
+            df.loc[actual_idx, 'shots_last_2min_home'] = np.sum(teams[mask_2min] == home_team)
+            df.loc[actual_idx, 'shots_last_2min_away'] = np.sum(teams[mask_2min] == away_team)
             
             # Last 5 minutes (300 seconds)
             mask_5min = (times >= time - 300) & (times <= time)
-            df.loc[game_mask, 'shots_last_5min_home'].iloc[idx] = np.sum(teams[mask_5min] == home_team)
-            df.loc[game_mask, 'shots_last_5min_away'].iloc[idx] = np.sum(teams[mask_5min] == away_team)
+            df.loc[actual_idx, 'shots_last_5min_home'] = np.sum(teams[mask_5min] == home_team)
+            df.loc[actual_idx, 'shots_last_5min_away'] = np.sum(teams[mask_5min] == away_team)
+    
+    print("   ✓ Rolling window features computed")
     
     # 4. SELECT FINAL COLUMNS
     final_columns = [
-        'game_id', 'shot_id', 'season', 'is_playoff_game', 'period',
+        'game_id', 'game_id_unique', 'shot_id', 'season', 'is_playoff_game', 'period',
         'time_elapsed', 'game_seconds_elapsed', 'time_in_period_seconds',
         'time_in_period_minutes', 'game_seconds_remaining',
         'home_team_code', 'away_team_code', 'home_team_goals', 'away_team_goals',

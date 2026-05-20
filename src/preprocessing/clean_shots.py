@@ -10,6 +10,7 @@ Orchestrates:
 6. Create game state classification
 7. CREATE TIME FEATURES ← THIS WAS MISSING!
 8. Create strength states
+8b. CREATE UNIQUE GAME_ID ← THIS WAS MISSING! (fixes duplicate game_ids across seasons)
 9. Add target variable
 10. Save cleaned parquet
 """
@@ -97,6 +98,24 @@ def main():
     shots = add_strength_state_column(shots)
     shots = create_strength_features(shots)
 
+    # CREATE UNIQUE GAME_ID ACROSS ALL SEASONS
+    print("\n8b. Creating unique game_id (fixing duplicate IDs across seasons)...")
+    print("   ⚠️  CRITICAL FIX: game_id in MoneyPuck repeats across seasons!")
+    print("   Creating game_id_unique = season * 100000 + game_id")
+    
+    shots['game_id_unique'] = (shots['season'].astype('int64') * 100000) + shots['game_id'].astype('int64')
+    
+    # Verify uniqueness
+    total_games_before = shots['game_id'].nunique()
+    total_games_after = shots['game_id_unique'].nunique()
+    print(f"   Before: {total_games_before:,} unique game_ids (BROKEN - repeated across seasons)")
+    print(f"   After:  {total_games_after:,} unique game_id_unique (FIXED - truly unique)")
+    
+    if total_games_after >= 13000:
+        print(f"   ✓ PASS! ~{total_games_after:,} games across 12 seasons is correct")
+    else:
+        print(f"   ⚠️  WARNING: Still low at {total_games_after:,}. Check raw data...")
+
     # Target
     print("\n9. Adding target variable...")
     shots = add_target_to_shots(shots, exclude_shootouts=True)
@@ -117,7 +136,8 @@ def main():
     print("SUMMARY")
     print("=" * 70)
     print(f"Rows: {len(shots):,}")
-    print(f"Games: {shots['game_id'].nunique():,}")
+    print(f"Unique games (old game_id): {shots['game_id'].nunique():,}")
+    print(f"Unique games (new game_id_unique): {shots['game_id_unique'].nunique():,}")
     
     if 'game_state' in shots.columns:
         print(f"\nGame state distribution:")
@@ -132,16 +152,16 @@ def main():
     # Verify all critical columns exist
     print(f"\nCritical columns:")
     critical = [
-        'game_id', 'period', 'time_elapsed',
+        'game_id', 'game_id_unique', 'period', 'time_elapsed',
         'game_seconds_elapsed', 'game_seconds_remaining',
         'game_state', 'strength_state', 'target_home_win'
     ]
     all_present = True
     for col in critical:
         if col in shots.columns:
-            print(f"   {col}")
+            print(f"   ✓ {col}")
         else:
-            print(f"  {col} MISSING!")
+            print(f"   ✗ {col} MISSING!")
             all_present = False
     
     if not all_present:
@@ -150,7 +170,7 @@ def main():
         return None
 
     print("\n" + "=" * 70)
-    print(" CLEAN SHOTS COMPLETE")
+    print("CLEAN SHOTS COMPLETE")
     print("=" * 70)
     print(f"\nNext step:")
     print(f"  python src/preprocessing/create_game_states.py\n")

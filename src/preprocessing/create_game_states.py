@@ -36,7 +36,7 @@ def main():
     print("\n1. Loading cleaned shots...")
     shots = pd.read_parquet(DATA_PROCESSED / "shots_cleaned.parquet")
     print(f"   Rows: {len(shots):,}")
-    print(f"   Unique games: {shots['game_id'].nunique():,}")
+    print(f"   Unique games: {shots['game_id_unique'].nunique():,}")
 
     # Create states
     print("\n2. Creating game state snapshots...")
@@ -63,11 +63,11 @@ def main():
     print("SUMMARY")
     print("=" * 60)
     print(f"Total states: {len(states):,}")
-    print(f"Total games: {states['game_id'].nunique():,}")
-    print(f"Avg states per game: {len(states) / states['game_id'].nunique():.1f}")
+    print(f"Total games: {states['game_id_unique'].nunique():,}")
+    print(f"Avg states per game: {len(states) / states['game_id_unique'].nunique():.1f}")
     print(f"Home win rate: {states['target_home_win'].mean():.1%}")
     print(
-        f"Regular season: {(~states['is_playoff_game']).sum() / states['game_id'].nunique() * 100:.1f}%"
+        f"Regular season: {(~states['is_playoff_game']).sum() / states['game_id_unique'].nunique() * 100:.1f}%"
     )
 
     print("\n✅ CREATE GAME STATES COMPLETE\n")
