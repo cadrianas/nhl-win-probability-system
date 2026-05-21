@@ -1,24 +1,151 @@
 {
-  "Close Games (|score_diff| \u2264 1)": {
-    "uncalibrated": {
-      "brier": 0.2039788739627454,
-      "log_loss": 0.5892754726287963,
-      "count": 76806
+  "by_score_differential": {
+    "Close (|diff| \u2264 1)": {
+      "count": 76806,
+      "uncalibrated": {
+        "brier": 0.2039788739627454,
+        "log_loss": 0.5892754726287963
+      },
+      "isotonic": {
+        "brier": 0.15429573551781672,
+        "log_loss": 0.4662661383893549
+      }
     },
-    "isotonic": {
-      "brier": 0.15429573551781672,
-      "log_loss": 0.4662661383893549
+    "Blowout (|diff| > 1)": {
+      "count": 31293,
+      "uncalibrated": {
+        "brier": 0.20779062258155798,
+        "log_loss": 0.6027840692468994
+      },
+      "isotonic": {
+        "brier": 0.13330161999773837,
+        "log_loss": 0.41454362789969107
+      }
     }
   },
-  "Blowouts (|score_diff| > 1)": {
-    "uncalibrated": {
-      "brier": 0.20779062258155798,
-      "log_loss": 0.6027840692468994,
-      "count": 31293
+  "by_period": {
+    "Period 1": {
+      "count": 34778,
+      "uncalibrated": {
+        "brier": 0.20274329404756916,
+        "log_loss": 0.5878085036594137
+      },
+      "isotonic": {
+        "brier": 0.1646124181195039,
+        "log_loss": 0.49337776268275346
+      }
     },
-    "isotonic": {
-      "brier": 0.13330161999773837,
-      "log_loss": 0.41454362789969107
+    "Period 2": {
+      "count": 37110,
+      "uncalibrated": {
+        "brier": 0.20471630281697836,
+        "log_loss": 0.5921121684599209
+      },
+      "isotonic": {
+        "brier": 0.14041640541911357,
+        "log_loss": 0.4312571576450272
+      }
+    },
+    "Period 3": {
+      "count": 34708,
+      "uncalibrated": {
+        "brier": 0.20697770796308115,
+        "log_loss": 0.5979559353539529
+      },
+      "isotonic": {
+        "brier": 0.1404556891018915,
+        "log_loss": 0.4313170483483712
+      }
+    },
+    "OT": {
+      "count": 1503,
+      "uncalibrated": {
+        "brier": 0.22447290759831512,
+        "log_loss": 0.633980381630619
+      },
+      "isotonic": {
+        "brier": 0.14076268593399602,
+        "log_loss": 0.4335021344875567
+      }
+    }
+  },
+  "by_strength_state": {
+    "5v4_HOME": {
+      "count": 9023,
+      "uncalibrated": {
+        "brier": 0.20346391881663076,
+        "log_loss": 0.5882974462691476
+      },
+      "isotonic": {
+        "brier": 0.14634374029795685,
+        "log_loss": 0.44395702618399285
+      }
+    },
+    "5v5": {
+      "count": 85182,
+      "uncalibrated": {
+        "brier": 0.20454008176986813,
+        "log_loss": 0.5922340074608922
+      },
+      "isotonic": {
+        "brier": 0.1484216800292407,
+        "log_loss": 0.45222688674535294
+      }
+    },
+    "3v3": {
+      "count": 1191,
+      "uncalibrated": {
+        "brier": 0.22507500927353669,
+        "log_loss": 0.6357777597831258
+      },
+      "isotonic": {
+        "brier": 0.14425748658536375,
+        "log_loss": 0.44243274786288195
+      }
+    },
+    "5v4_AWAY": {
+      "count": 8093,
+      "uncalibrated": {
+        "brier": 0.20925457224528468,
+        "log_loss": 0.6018172988619626
+      },
+      "isotonic": {
+        "brier": 0.1481288323704292,
+        "log_loss": 0.44970563518492596
+      }
+    },
+    "4v4": {
+      "count": 1161,
+      "uncalibrated": {
+        "brier": 0.2124834239185554,
+        "log_loss": 0.6080980137554828
+      },
+      "isotonic": {
+        "brier": 0.15030254099342902,
+        "log_loss": 0.4547028568445872
+      }
+    },
+    "6v5_HOME": {
+      "count": 1664,
+      "uncalibrated": {
+        "brier": 0.20312207219373443,
+        "log_loss": 0.5885763554868403
+      },
+      "isotonic": {
+        "brier": 0.14768128679141646,
+        "log_loss": 0.45017949572101607
+      }
+    },
+    "5v6_AWAY": {
+      "count": 1782,
+      "uncalibrated": {
+        "brier": 0.2040007078447694,
+        "log_loss": 0.5905736871631853
+      },
+      "isotonic": {
+        "brier": 0.1503130000288571,
+        "log_loss": 0.45606353164452296
+      }
     }
   }
 }
