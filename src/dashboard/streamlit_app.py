@@ -34,7 +34,6 @@ SRC_PATH = Path(__file__).parent.parent.absolute()
 sys.path.insert(0, str(SRC_PATH))
 
 from utils.paths import (
-    DATA_INTERIM,
     DATA_PROCESSED,
     RESULTS_MODELS,
     ensure_directories,
@@ -82,20 +81,37 @@ def load_model():
 
 @st.cache_data(show_spinner="Loading game states…")
 def load_game_states() -> pd.DataFrame:
-    path = DATA_INTERIM / "game_states.csv"
+    path = DATA_PROCESSED / "game_states.parquet"
     if not path.exists():
         return pd.DataFrame()
-    df = pd.read_csv(path, low_memory=False)
+    df = pd.read_parquet(path)
     return df
 
 
 @st.cache_data(show_spinner="Loading shots…")
 def load_shots() -> pd.DataFrame:
-    path = DATA_INTERIM / "shots.csv"
+    path = DATA_PROCESSED / "shots_cleaned.parquet"
     if not path.exists():
         return pd.DataFrame()
-    df = pd.read_csv(path, low_memory=False)
+    df = pd.read_parquet(path)
     return df
+
+
+@st.cache_data(show_spinner="Loading engineered features…")
+def load_features() -> pd.DataFrame:
+    """
+    Load pre-engineered features (train + test concatenated).
+    Both game_states.parquet and features CSVs have identical row counts (1.3M)
+    and same game coverage (15k games), so they're aligned by row order.
+    """
+    frames = []
+    for name in ["features_train.csv", "features_test.csv"]:
+        path = DATA_PROCESSED / name
+        if path.exists():
+            frames.append(pd.read_csv(path, low_memory=False))
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -120,22 +136,80 @@ def add_time_elapsed(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
-# Helper: run model on a game's rows
+# Helper: feature columns the model expects
 # ---------------------------------------------------------------------------
 
-def predict_game(model, game_df: pd.DataFrame) -> np.ndarray:
+def model_feature_columns(model) -> list:
     """
-    Run the calibrated model on the numeric features of a game's rows.
-    Returns array of home-win probabilities, one per row.
+    Get the exact ordered list of feature names the underlying XGBoost expects.
+    The calibrated wrapper holds the base estimator; XGBoost exposes feature
+    names via .get_booster().feature_names.
     """
-    X = game_df.select_dtypes(include=[np.number]).drop(
-        columns=["target_home_win", "time_elapsed_s"], errors="ignore"
-    )
-    if X.empty or model is None:
-        return np.full(len(game_df), 0.5)
+    base = getattr(model, "estimator", None)
+    # CalibratedClassifierCV after fit has calibrated_classifiers_, each with .estimator
+    if base is None and hasattr(model, "calibrated_classifiers_"):
+        try:
+            base = model.calibrated_classifiers_[0].estimator
+        except Exception:
+            base = None
+    base = base if base is not None else model
     try:
-        return model.predict_proba(X)[:, 1]
+        return list(base.get_booster().feature_names)
     except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
+# Helper: predict on a game by joining to pre-engineered features
+# ---------------------------------------------------------------------------
+
+def predict_game(model, game_df: pd.DataFrame, features_df: pd.DataFrame) -> np.ndarray:
+    """
+    Use row indices from game_df (filtered game_states) to directly index
+    into features_df. Both are aligned by row order (same 1.3M row count).
+    """
+    if model is None:
+        st.warning("❌ Model is None")
+        return np.full(len(game_df), 0.5)
+    
+    if features_df.empty:
+        st.warning("❌ Features dataframe is empty")
+        return np.full(len(game_df), 0.5)
+
+    feat_cols = model_feature_columns(model)
+    if not feat_cols:
+        st.warning("❌ Could not extract feature columns from model")
+        return np.full(len(game_df), 0.5)
+
+    try:
+        # game_df has already been filtered to selected game
+        # Its index in game_states tells us which rows to grab from features_df
+        row_indices = game_df.index.tolist()
+        
+        if not row_indices:
+            st.warning("❌ No rows found for this game")
+            return np.full(len(game_df), 0.5)
+        
+        # Extract features using the same row indices
+        X = features_df.iloc[row_indices][feat_cols].fillna(0.0).astype(float)
+        
+        if X.empty:
+            st.warning("❌ No feature rows found")
+            return np.full(len(game_df), 0.5)
+        
+        # Make predictions
+        preds = model.predict_proba(X)[:, 1]
+        
+        # Sanity check
+        if (preds == 0.5).all():
+            st.warning(f"⚠️ All predictions are 0.5 (model may not be discriminating)")
+        
+        return preds
+        
+    except Exception as e:
+        st.warning(f"❌ Prediction failed: {type(e).__name__}: {str(e)[:300]}")
+        import traceback
+        st.write(traceback.format_exc())
         return np.full(len(game_df), 0.5)
 
 
@@ -343,34 +417,60 @@ def scorecard(game_df: pd.DataFrame, home_team: str, away_team: str) -> None:
 # SHAP waterfall for a single snapshot
 # ---------------------------------------------------------------------------
 
-def shap_panel(model, game_df: pd.DataFrame, row_idx: int) -> None:
+def shap_panel(model, game_df: pd.DataFrame, features_df: pd.DataFrame, row_idx: int) -> None:
     try:
         import shap
     except ImportError:
         st.info("Install `shap` to enable explainability: `pip install shap`")
         return
 
-    X = game_df.select_dtypes(include=[np.number]).drop(
-        columns=["target_home_win", "time_elapsed_s"], errors="ignore"
-    )
-    if X.empty:
+    if features_df.empty:
+        st.info("Engineered features not loaded — SHAP unavailable.")
         return
 
-    row = X.iloc[[row_idx]]
+    feat_cols = model_feature_columns(model)
+    if not feat_cols:
+        st.info("Could not read model's feature schema — SHAP unavailable.")
+        return
 
-    # TreeExplainer works directly on the base XGBoost inside the calibrated wrapper
-    base_model = getattr(model, "estimator", model)
+    if game_df.empty:
+        st.info("Game dataframe is empty — SHAP unavailable.")
+        return
+
+    # Get row indices for this game from game_df
+    row_indices = game_df.index.tolist()
+    if not row_indices or row_idx >= len(row_indices):
+        st.info("Row index out of range — SHAP unavailable.")
+        return
+
     try:
+        # Extract features using row indices
+        X_all = features_df.iloc[row_indices][feat_cols].fillna(0.0).astype(float)
+        
+        if X_all.empty or row_idx >= len(X_all):
+            return
+
+        row = X_all.iloc[[row_idx]]
+
+        # Grab the underlying XGBoost out of the calibrated wrapper
+        base_model = None
+        if hasattr(model, "calibrated_classifiers_"):
+            try:
+                base_model = model.calibrated_classifiers_[0].estimator
+            except Exception:
+                pass
+        if base_model is None:
+            base_model = getattr(model, "estimator", model)
+
         explainer = shap.TreeExplainer(base_model)
         sv = explainer.shap_values(row)
         shap_vals = sv[0] if isinstance(sv, list) else sv[0]
     except Exception as e:
-        st.warning(f"SHAP unavailable for this model: {e}")
+        st.warning(f"SHAP unavailable: {e}")
         return
 
-    feat_names = X.columns.tolist()
     df_shap = (
-        pd.DataFrame({"feature": feat_names, "shap": shap_vals})
+        pd.DataFrame({"feature": feat_cols, "shap": shap_vals})
         .assign(abs_shap=lambda d: d["shap"].abs())
         .sort_values("abs_shap", ascending=False)
         .head(10)
@@ -406,13 +506,14 @@ def main() -> None:
     st.caption("Calibrated XGBoost model · Phases 1–5 of the NHL Win Probability Project")
 
     # ── Load assets ─────────────────────────────────────────────────────────
-    model      = load_model()
+    model       = load_model()
     game_states = load_game_states()
-    shots_all  = load_shots()
+    shots_all   = load_shots()
+    features_df = load_features()
 
     if game_states.empty:
         st.error(
-            "No game states found. Expected: `data/interim/game_states.csv`\n\n"
+            "No game states found. Expected: `data/processed/game_states.parquet`\n\n"
             "Run Phase 1 (game state generation) first."
         )
         return
@@ -457,14 +558,14 @@ def main() -> None:
             season_df = season_df[mask]
 
     # Game selector — build a readable label
-    game_ids = season_df["game_id"].unique()
+    game_ids = season_df["game_id_unique"].unique()
 
     if len(game_ids) == 0:
         st.sidebar.warning("No games match the current filters.")
         return
 
     def game_label(gid: int) -> str:
-        g = season_df[season_df["game_id"] == gid].iloc[0]
+        g = season_df[season_df["game_id_unique"] == gid].iloc[0]
         home = g.get("home_team_code", "HOME")
         away = g.get("away_team_code", "AWAY")
         date = g.get("game_date", g.get("date", ""))
@@ -479,24 +580,28 @@ def main() -> None:
 
     # ── Slice the selected game ──────────────────────────────────────────────
     game_df = (
-        season_df[season_df["game_id"] == selected_game_id]
+        season_df[season_df["game_id_unique"] == selected_game_id]
         .sort_values("time_elapsed_s")
-        .reset_index(drop=True)
+        # Do NOT reset_index - keep original row indices from game_states
     )
 
     home_team = team_label(game_df, "home")
     away_team = team_label(game_df, "away")
 
     # Run model predictions
-    game_df["home_win_prob"] = predict_game(model, game_df)
+    game_df["home_win_prob"] = predict_game(model, game_df, features_df)
 
     # Goals for this game
-    if not shots_all.empty and "game_id" in shots_all.columns:
-        goals_df = shots_all[
-            (shots_all["game_id"] == selected_game_id) &
-            (shots_all.get("isGoal", shots_all.get("is_goal", pd.Series(0, index=shots_all.index))) == 1)
-        ].copy()
-        goals_df = add_time_elapsed(goals_df)
+    if not shots_all.empty and "game_id_unique" in shots_all.columns:
+        goal_col = "isGoal" if "isGoal" in shots_all.columns else ("is_goal" if "is_goal" in shots_all.columns else None)
+        if goal_col:
+            goals_df = shots_all[
+                (shots_all["game_id_unique"] == selected_game_id) &
+                (shots_all[goal_col] == 1)
+            ].copy()
+            goals_df = add_time_elapsed(goals_df)
+        else:
+            goals_df = pd.DataFrame()
     else:
         goals_df = pd.DataFrame()
 
@@ -555,7 +660,7 @@ def main() -> None:
         )
 
         if model is not None:
-            shap_panel(model, game_df, row_idx)
+            shap_panel(model, game_df, features_df, row_idx)
 
     # ── Raw game state table (expandable) ───────────────────────────────────
     with st.expander("📋 Raw game state data"):
