@@ -15,6 +15,7 @@ import pickle
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Tuple
+import sys
 
 import numpy as np
 import pandas as pd
@@ -27,7 +28,16 @@ import xgboost as xgb
 import lightgbm as lgb
 from sklearn.metrics import roc_auc_score, log_loss
 
+# Ensure project root is on path so src.utils.paths resolves
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.utils.paths import RESULTS_MODELS
 
+def preprocess_features(X):
+    """Drop non-numeric columns."""
+    numeric_cols = X.select_dtypes(include=[np.number]).columns
+    return X[numeric_cols]
+
+    
 class HyperparameterTuner:
     """
     Bayesian hyperparameter optimization for XGBoost and LightGBM.
@@ -111,27 +121,23 @@ class HyperparameterTuner:
             'colsample_bylevel': trial.suggest_float('colsample_bylevel', 0.5, 1.0),
             'min_child_weight': trial.suggest_float('min_child_weight', 0.5, 10.0),
             'gamma': trial.suggest_float('gamma', 0, 5),
-            'lambda': trial.suggest_float('lambda', 0, 5, log=True),
-            'alpha': trial.suggest_float('alpha', 0, 5, log=True),
+            'lambda': trial.suggest_float('lambda', 0.001, 5, log=True),
+            'alpha': trial.suggest_float('alpha', 0.001, 5, log=True),
             'random_state': 42,
             'verbosity': 0,
             'eval_metric': 'logloss'
         }
         
         try:
+            # Convert to numeric only
+            X_train_numeric = preprocess_features(self.X_train)
+            X_val_numeric = preprocess_features(self.X_val)
+
             # Train model
             model = xgb.XGBClassifier(**params)
-            
-            # Use early stopping
-            model.fit(
-                self.X_train, self.y_train,
-                eval_set=[(self.X_val, self.y_val)],
-                early_stopping_rounds=50,
-                verbose=False
-            )
-            
+            model.fit(X_train_numeric, self.y_train)
             # Get predictions
-            y_pred_proba = model.predict_proba(self.X_val)[:, 1]
+            y_pred_proba = model.predict_proba(X_val_numeric)[:, 1]
             
             # Calculate metric
             if self.metric == 'roc_auc':
@@ -151,10 +157,10 @@ class HyperparameterTuner:
     def _objective_lightgbm(self, trial: optuna.Trial) -> float:
         """
         Objective function for LightGBM optimization.
-        
+
         Args:
             trial: Optuna Trial object
-            
+
         Returns:
             Validation metric score
         """
@@ -166,39 +172,43 @@ class HyperparameterTuner:
             'subsample': trial.suggest_float('subsample', 0.5, 1.0),
             'colsample_bytree': trial.suggest_float('colsample_bytree', 0.5, 1.0),
             'min_child_weight': trial.suggest_float('min_child_weight', 0.1, 10.0),
-            'lambda_l1': trial.suggest_float('lambda_l1', 0, 10, log=True),
-            'lambda_l2': trial.suggest_float('lambda_l2', 0, 10, log=True),
+            'lambda_l1': trial.suggest_float('lambda_l1', 0.001, 10, log=True),
+            'lambda_l2': trial.suggest_float('lambda_l2', 0.001, 10, log=True),
             'min_data_in_leaf': trial.suggest_int('min_data_in_leaf', 5, 50),
             'random_state': 42,
             'verbose': -1,
             'metric': 'binary_logloss'
         }
-        
+
         try:
+            # Convert to numeric only
+            X_train_numeric = preprocess_features(self.X_train)
+            X_val_numeric = preprocess_features(self.X_val)
+
             # Train model
             model = lgb.LGBMClassifier(**params)
-            
+
             model.fit(
-                self.X_train, self.y_train,
-                eval_set=[(self.X_val, self.y_val)],
+                X_train_numeric, self.y_train,
+                eval_set=[(X_val_numeric, self.y_val)],
                 eval_metric='auc' if self.metric == 'roc_auc' else 'binary_logloss',
                 callbacks=[
                     lgb.early_stopping(stopping_rounds=50, verbose=False),
                     lgb.log_evaluation(period=0)
                 ]
             )
-            
+
             # Get predictions
-            y_pred_proba = model.predict_proba(self.X_val)[:, 1]
-            
+            y_pred_proba = model.predict_proba(X_val_numeric)[:, 1]
+
             # Calculate metric
             if self.metric == 'roc_auc':
                 score = roc_auc_score(self.y_val, y_pred_proba)
             else:  # log_loss
                 score = log_loss(self.y_val, y_pred_proba)
-            
+
             return score
-            
+
         except Exception as e:
             print(f"Trial failed: {e}")
             return float('-inf') if self.metric == 'roc_auc' else float('inf')
@@ -254,23 +264,26 @@ class HyperparameterTuner:
     def train_best_model(self) -> Any:
         """
         Train final model with best hyperparameters.
-        
+
         Returns:
             Trained model object
         """
         if self.best_params is None:
             raise ValueError("Must run optimize() first")
-        
+
         print(f"\nTraining final {self.model_type.upper()} model with best params...")
-        
+
+        # Preprocess features to remove categorical columns
+        X_train_numeric = preprocess_features(self.X_train)
+
         if self.model_type == 'xgboost':
             model = xgb.XGBClassifier(**self.best_params, random_state=42, verbosity=0)
         else:
             model = lgb.LGBMClassifier(**self.best_params, random_state=42, verbose=-1)
-        
-        model.fit(self.X_train, self.y_train)
+
+        model.fit(X_train_numeric, self.y_train)
         self.best_model = model
-        
+
         return model
     
     def get_trials_dataframe(self) -> pd.DataFrame:
@@ -345,30 +358,71 @@ def load_data(features_file: Path) -> Tuple[pd.DataFrame, pd.Series]:
     """
     Load feature matrix and target variable.
     
-    Assumes file structure:
-        - Target column: 'home_team_won' or 'target'
-        - All other columns are features
+    Handles multiple file naming conventions:
+        - Single file: features.csv, features_train.csv, etc.
+        - Split files: features_train.csv + features_test.csv
+    
+    Assumes target column is: 'home_team_won', 'target', or 'y'
     
     Args:
-        features_file: Path to features CSV
+        features_file: Path to features CSV (or directory containing split files)
         
     Returns:
         (X, y) tuple
     """
+    features_file = Path(features_file)
+    
+    # If it's a directory, look for train/test split
+    if features_file.is_dir():
+        train_file = features_file / 'features_train.csv'
+        if train_file.exists():
+            features_file = train_file
+            print(f"Found split files. Using {train_file} for tuning.")
+        else:
+            raise ValueError(f"No features_train.csv found in {features_file}")
+    
+    # If file doesn't exist, try common alternatives
+    if not features_file.exists():
+        alternatives = [
+            features_file.parent / 'features_train.csv',
+            features_file.parent / 'features.csv',
+            Path('data/processed/features_train.csv'),
+            Path('data/processed/features.csv'),
+        ]
+        
+        found = False
+        for alt in alternatives:
+            if alt.exists():
+                print(f"File not found: {features_file}")
+                print(f"Using alternative: {alt}")
+                features_file = alt
+                found = True
+                break
+        
+        if not found:
+            raise FileNotFoundError(
+                f"Could not find features file.\n"
+                f"Tried: {features_file}, {[str(a) for a in alternatives]}"
+            )
+    
     df = pd.read_csv(features_file)
     
     # Identify target column
-    target_cols = ['home_team_won', 'target', 'y']
+    target_cols = ['target_home_win', 'home_team_won', 'target', 'y']
     target_col = next((col for col in target_cols if col in df.columns), None)
     
     if target_col is None:
-        raise ValueError(f"Could not find target column. Available: {df.columns.tolist()}")
+        raise ValueError(
+            f"Could not find target column in {features_file}.\n"
+            f"Available columns: {df.columns.tolist()}\n"
+            f"Expected one of: {target_cols}"
+        )
     
     y = df[target_col]
     X = df.drop(columns=[target_col])
     
-    print(f"Loaded {len(X)} samples with {X.shape[1]} features")
-    print(f"Target distribution: {y.value_counts().to_dict()}")
+    print(f"✓ Loaded {len(X):,} samples with {X.shape[1]} features")
+    print(f"  Target distribution: {dict(y.value_counts())}")
     
     return X, y
 
@@ -378,7 +432,7 @@ def run_tuning_pipeline(
     model_type: str = 'xgboost',
     n_trials: int = 100,
     val_size: float = 0.2,
-    output_dir: Path = Path('tuning_results'),
+    output_dir: Path = None,
     metric: str = 'roc_auc',
     n_jobs: int = 1
 ):
@@ -390,10 +444,12 @@ def run_tuning_pipeline(
         model_type: 'xgboost' or 'lightgbm'
         n_trials: Number of optimization trials
         val_size: Validation set fraction
-        output_dir: Directory to save results
+        output_dir: Directory to save results (defaults to results/models/)
         metric: 'roc_auc' or 'log_loss'
         n_jobs: Parallel jobs for optimization
     """
+    if output_dir is None:
+        output_dir = RESULTS_MODELS
     # Load data
     print(f"\nLoading features from {features_file}")
     X, y = load_data(features_file)
@@ -458,8 +514,8 @@ if __name__ == '__main__':
                         help='Number of optimization trials')
     parser.add_argument('--metric', type=str, choices=['roc_auc', 'log_loss'],
                         default='roc_auc', help='Optimization metric')
-    parser.add_argument('--output-dir', type=Path, default='tuning_results',
-                        help='Directory to save results')
+    parser.add_argument('--output-dir', type=Path, default=None,
+                        help='Directory to save results (default: results/models/)')
     parser.add_argument('--n-jobs', type=int, default=1,
                         help='Parallel jobs (-1 for all cores)')
     parser.add_argument('--val-size', type=float, default=0.2,

@@ -294,14 +294,35 @@ class ModelComparator:
 
 
 def load_data(features_file: Path) -> Tuple[pd.DataFrame, pd.Series]:
-    """Load features and target."""
+    """Load features and target, handling both single and split file formats."""
+    features_file = Path(features_file)
+    
+    # If it's a directory, look for train file
+    if features_file.is_dir():
+        train_file = features_file / 'features_train.csv'
+        if train_file.exists():
+            features_file = train_file
+    
+    # If file doesn't exist, try alternatives
+    if not features_file.exists():
+        alternatives = [
+            features_file.parent / 'features_train.csv',
+            features_file.parent / 'features.csv',
+            Path('data/processed/features_train.csv'),
+            Path('data/processed/features.csv'),
+        ]
+        for alt in alternatives:
+            if alt.exists():
+                features_file = alt
+                break
+    
     df = pd.read_csv(features_file)
     
     target_cols = ['home_team_won', 'target', 'y']
     target_col = next((col for col in target_cols if col in df.columns), None)
     
     if target_col is None:
-        raise ValueError(f"Could not find target column in {features_file}")
+        raise ValueError(f"Could not find target column. Available: {df.columns.tolist()}")
     
     y = df[target_col]
     X = df.drop(columns=[target_col])

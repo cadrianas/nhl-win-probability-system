@@ -1,0 +1,24 @@
+{
+  "Close Games (|score_diff| \u2264 1)": {
+    "uncalibrated": {
+      "brier": 0.2039788739627454,
+      "log_loss": 0.5892754726287963,
+      "count": 76806
+    },
+    "isotonic": {
+      "brier": 0.15429573551781672,
+      "log_loss": 0.4662661383893549
+    }
+  },
+  "Blowouts (|score_diff| > 1)": {
+    "uncalibrated": {
+      "brier": 0.20779062258155798,
+      "log_loss": 0.6027840692468994,
+      "count": 31293
+    },
+    "isotonic": {
+      "brier": 0.13330161999773837,
+      "log_loss": 0.41454362789969107
+    }
+  }
+}
