@@ -17,12 +17,17 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED
+
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 # Config
-FEATURES_TRAIN_CSV = Path("data/processed/features_train.csv")
-FEATURES_TEST_CSV = Path("data/processed/features_test.csv")
+FEATURES_TRAIN_CSV = DATA_PROCESSED / "features_train.csv"
+FEATURES_TEST_CSV = DATA_PROCESSED / "features_test.csv"
 EXCLUDE_COLUMNS = {'game_id_unique', 'shot_id', 'target_home_win'}
 
 def load_data():

@@ -5,8 +5,15 @@ and help fix the game state builder.
 import pandas as pd
 from pathlib import Path
 
+import sys
+
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED
+
 # Adjust path to your local project
-shots_path = Path("/Users/adriana-stefaniaciupeanu/Documents/nhl-win-probability-system/data/processed/shots_cleaned.parquet")
+shots_path = DATA_PROCESSED / "shots_cleaned.parquet"
 
 if shots_path.exists():
     shots = pd.read_parquet(shots_path)

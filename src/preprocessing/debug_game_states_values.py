@@ -4,8 +4,14 @@ Debug: Check if cumulative xG was actually computed in game_states.parquet
 
 import polars as pl
 from pathlib import Path
+import sys
 
-gs_path = Path("data/processed/game_states.parquet")
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED
+
+gs_path = DATA_PROCESSED / "game_states.parquet"
 
 print("\n" + "=" * 100)
 print("CHECKING GAME_STATES.PARQUET CUMULATIVE VALUES")
