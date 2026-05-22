@@ -82,7 +82,3 @@ from src.utils.paths import DATA_PROCESSED, RESULTS_MODELS, ensure_directories
 
 ensure_directories()  # Call at the start of scripts
 ```
-
-## License
-
-MIT License
