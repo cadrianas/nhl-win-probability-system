@@ -91,8 +91,21 @@ def create_game_states_DEBUG(shots: pd.DataFrame) -> pd.DataFrame:
 
 # Test it
 if __name__ == '__main__':
+    import sys
+    from pathlib import Path
+
+    # Ensure project root is on path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+    from src.utils.paths import DATA_PROCESSED
+
     print("\nLoading shots...")
-    shots = pd.read_parquet("data/processed/shots_cleaned.parquet")
+    shots_path = DATA_PROCESSED / "shots_cleaned.parquet"
+    if not shots_path.exists():
+        print(f"❌ {shots_path} not found")
+        sys.exit(1)
+
+    shots = pd.read_parquet(shots_path)
     print(f"Loaded {len(shots):,} shots")
     
     print("\nRunning debug version...")

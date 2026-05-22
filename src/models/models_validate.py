@@ -18,6 +18,17 @@ import logging
 from pathlib import Path
 from typing import Tuple, List
 
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import (
+    DATA_PROCESSED,
+    RESULTS_MODELS,
+    RESULTS_LOGS,
+    RESULTS_METRICS,
+    ensure_directories
+)
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -67,8 +78,8 @@ def check_phase2_outputs() -> Tuple[bool, List[str]]:
     """
     issues = []
     
-    train_path = Path("data/processed/features_train.csv")
-    test_path = Path("data/processed/features_test.csv")
+    train_path = DATA_PROCESSED / "features_train.csv"
+    test_path = DATA_PROCESSED / "features_test.csv"
     
     # Check existence
     if not train_path.exists():
@@ -135,26 +146,26 @@ def check_phase3_modules() -> Tuple[bool, List[str]]:
     issues = []
     
     modules_to_check = [
-        ('baseline', 'Logistic Regression model'),
-        ('xgboost_model', 'XGBoost model'),
-        ('lightgbm_model', 'LightGBM model'),
-        ('evaluate', 'Evaluation utilities'),
+        ('src.models.baseline', 'Logistic Regression model'),
+        ('src.models.xgboost_model', 'XGBoost model'),
+        ('src.models.lightgbm_model', 'LightGBM model'),
+        ('src.models.evaluate', 'Evaluation utilities'),
     ]
     
     for module_name, description in modules_to_check:
         try:
-            __import__(module_name)
-            print(f"✓ {description} ({module_name}.py)")
+            __import__(module_name, fromlist=['*'])
+            print(f"✓ {description} ({module_name})")
         except ImportError as e:
-            issues.append(f"✗ {description} not found: {module_name}.py")
+            issues.append(f"✗ {description} not found: {module_name}")
             print(f"✗ {description} not found or import error: {e}")
     
-    # Check phase3_main.py
-    main_path = Path("phase3_main.py")
+    # Check models_main.py
+    main_path = Path(__file__).parent / "models_main.py"
     if main_path.exists():
         print(f"✓ Main orchestrator found: {main_path}")
     else:
-        issues.append("✗ Main orchestrator not found: phase3_main.py")
+        issues.append("✗ Main orchestrator not found: src/models/models_main.py")
         print(f"✗ Main orchestrator not found: {main_path}")
     
     return len(issues) == 0, issues
@@ -173,20 +184,19 @@ def check_output_directories() -> Tuple[bool, List[str]]:
     """
     issues = []
     
-    output_dir = Path("phase3_models")
+    ensure_directories()
     subdirs = [
-        output_dir / "models",
-        output_dir / "results",
-        output_dir / "logs",
+        RESULTS_MODELS,
+        RESULTS_METRICS,
+        RESULTS_LOGS,
     ]
     
     for subdir in subdirs:
-        try:
-            subdir.mkdir(parents=True, exist_ok=True)
+        if subdir.exists():
             print(f"✓ Output directory ready: {subdir}")
-        except Exception as e:
-            issues.append(f"✗ Cannot create output directory: {subdir}: {e}")
-            print(f"✗ Cannot create output directory: {subdir}: {e}")
+        else:
+            issues.append(f"✗ Output directory missing: {subdir}")
+            print(f"✗ Output directory missing: {subdir}")
     
     return len(issues) == 0, issues
 
@@ -251,8 +261,8 @@ def main():
     if all_checks_pass:
         print("✓ ALL CHECKS PASSED - READY FOR PHASE 3")
         print("\nNext steps:")
-        print("  1. python phase3_main.py          # Run Phase 3 training")
-        print("  2. Check results in phase3_models/results/")
+        print("  1. python src/models/models_main.py          # Run Phase 3 training")
+        print("  2. Check results in results/metrics/")
         print("=" * 100)
         return 0
     else:
@@ -260,7 +270,7 @@ def main():
         print("\nCommon fixes:")
         print("  - pip install -r requirements.txt")
         print("  - Run Phase 2 first to generate features_train.csv and features_test.csv")
-        print("  - Ensure baseline.py, xgboost_model.py, etc. are in project root")
+        print("  - Ensure baseline.py, xgboost_model.py, etc. are in src/models/")
         print("=" * 100)
         return 1
 

@@ -6,8 +6,14 @@ This will show if the problem is in Phase 1 (cumulative computation)
 import polars as pl
 import pandas as pd
 from pathlib import Path
+import sys
 
-game_states_path = Path("data/processed/game_states.parquet")
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED
+
+game_states_path = DATA_PROCESSED / "game_states.parquet"
 
 if not game_states_path.exists():
     print(f"ERROR: {game_states_path} not found!")

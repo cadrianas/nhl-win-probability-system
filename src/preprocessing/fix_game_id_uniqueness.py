@@ -11,8 +11,14 @@ Solution: Create a composite unique_game_id
 
 import pandas as pd
 from pathlib import Path
+import sys
 
-shots_path = Path("data/processed/shots_cleaned.parquet")
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED
+
+shots_path = DATA_PROCESSED / "shots_cleaned.parquet"
 
 print("=" * 100)
 print("FIXING GAME_ID UNIQUENESS")
