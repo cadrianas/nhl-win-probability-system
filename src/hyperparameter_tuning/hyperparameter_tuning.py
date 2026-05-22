@@ -30,7 +30,7 @@ from sklearn.metrics import roc_auc_score, log_loss
 
 # Ensure project root is on path so src.utils.paths resolves
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-from src.utils.paths import RESULTS_MODELS
+from src.utils.paths import RESULTS_MODELS, RESULTS_TUNING, ensure_directories
 
 def preprocess_features(X):
     """Drop non-numeric columns."""
@@ -59,7 +59,7 @@ class HyperparameterTuner:
         y_val: pd.Series,
         model_type: str = 'xgboost',
         metric: str = 'roc_auc',
-        output_dir: Path = Path('tuning_results')
+        output_dir: Path = RESULTS_TUNING
     ):
         """
         Initialize tuner.
@@ -432,7 +432,7 @@ def run_tuning_pipeline(
     model_type: str = 'xgboost',
     n_trials: int = 100,
     val_size: float = 0.2,
-    output_dir: Path = None,
+    output_dir: Path = RESULTS_TUNING,
     metric: str = 'roc_auc',
     n_jobs: int = 1
 ):
@@ -444,12 +444,11 @@ def run_tuning_pipeline(
         model_type: 'xgboost' or 'lightgbm'
         n_trials: Number of optimization trials
         val_size: Validation set fraction
-        output_dir: Directory to save results (defaults to results/models/)
+        output_dir: Directory to save results (defaults to results/tuning/)
         metric: 'roc_auc' or 'log_loss'
         n_jobs: Parallel jobs for optimization
     """
-    if output_dir is None:
-        output_dir = RESULTS_MODELS
+    ensure_directories()
     # Load data
     print(f"\nLoading features from {features_file}")
     X, y = load_data(features_file)

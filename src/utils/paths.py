@@ -35,6 +35,8 @@ RESULTS_MODELS = RESULTS / "models"           # Trained models & calibration
 RESULTS_LOGS = RESULTS / "logs"               # Training logs
 RESULTS_PLOTS = RESULTS / "plots"             # Visualizations & diagrams
 RESULTS_METRICS = RESULTS / "metrics"         # Evaluation metrics
+RESULTS_PHASE2 = RESULTS / "phase2"           # Feature engineering results
+RESULTS_TUNING = RESULTS / "tuning"           # Hyperparameter tuning results
 
 # ============================================================================
 # PROJECT STRUCTURE DIRECTORIES
@@ -51,9 +53,9 @@ SRC = PROJECT_ROOT / "src"
 SRC_PREPROCESSING = SRC / "preprocessing"
 SRC_FEATURES = SRC / "features"
 SRC_MODELS = SRC / "models"
-SRC_TRAINING = SRC / "training"
 SRC_CALIBRATION = SRC / "calibration"
-SRC_VISUALIZATION = SRC / "visualization"
+SRC_DASHBOARD = SRC / "dashboard"
+SRC_HYPERPARAMETER_TUNING = SRC / "hyperparameter_tuning"
 SRC_UTILITIES = SRC / "utils"
 
 # ============================================================================
@@ -111,13 +113,15 @@ def ensure_directories() -> None:
         RESULTS_LOGS,
         RESULTS_PLOTS,
         RESULTS_METRICS,
+        RESULTS_PHASE2,
+        RESULTS_TUNING,
         # Source directories
         SRC_PREPROCESSING,
         SRC_FEATURES,
         SRC_MODELS,
-        SRC_TRAINING,
         SRC_CALIBRATION,
-        SRC_VISUALIZATION,
+        SRC_DASHBOARD,
+        SRC_HYPERPARAMETER_TUNING,
         SRC_UTILITIES,
         # Project directories
         NOTEBOOKS,
@@ -141,15 +145,17 @@ def print_structure() -> None:
     print(f"  MODELS:     {RESULTS_MODELS}")
     print(f"  LOGS:       {RESULTS_LOGS}")
     print(f"  PLOTS:      {RESULTS_PLOTS}")
-    print(f"  METRICS:    {RESULTS_METRICS}\n")
+    print(f"  METRICS:    {RESULTS_METRICS}")
+    print(f"  PHASE 2:    {RESULTS_PHASE2}")
+    print(f"  TUNING:     {RESULTS_TUNING}\n")
     
     print("💻 Source Code Modules:")
     print(f"  PREPROCESSING:  {SRC_PREPROCESSING}")
     print(f"  FEATURES:       {SRC_FEATURES}")
     print(f"  MODELS:         {SRC_MODELS}")
-    print(f"  TRAINING:       {SRC_TRAINING}")
     print(f"  CALIBRATION:    {SRC_CALIBRATION}")
-    print(f"  VISUALIZATION:  {SRC_VISUALIZATION}\n")
+    print(f"  DASHBOARD:      {SRC_DASHBOARD}")
+    print(f"  TUNING:         {SRC_HYPERPARAMETER_TUNING}\n")
 
 
 # ============================================================================

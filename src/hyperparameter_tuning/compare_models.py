@@ -5,13 +5,19 @@ Compares baseline (untunned) models against tuned hyperparameters
 on validation and test sets.
 
 Usage:
-    python compare_models.py --baseline models/xgb_baseline.pkl --tuned tuning_results/xgboost_best_model.pkl --features data/processed/features.csv
+    python src/hyperparameter_tuning/compare_models.py --baseline results/models/xgb_baseline.pkl --tuned results/tuning/xgboost_best_model.pkl --features data/processed/features_train.csv
 """
 
 import argparse
 import pickle
+import sys
 from pathlib import Path
 from typing import Tuple
+
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED, RESULTS_TUNING, ensure_directories
 
 import numpy as np
 import pandas as pd
@@ -335,9 +341,10 @@ def run_comparison(
     tuned_model_path: Path,
     features_file: Path,
     val_size: float = 0.2,
-    output_dir: Path = Path('comparison_results')
+    output_dir: Path = RESULTS_TUNING / 'comparison'
 ):
     """Run complete comparison pipeline."""
+    ensure_directories()
     # Create output directory
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -400,14 +407,15 @@ def run_comparison(
 
 
 if __name__ == '__main__':
+    ensure_directories()
     parser = argparse.ArgumentParser(description='Compare baseline vs tuned models')
-    parser.add_argument('--baseline', type=Path, default='models/xgb_baseline.pkl',
+    parser.add_argument('--baseline', type=Path, default=str(RESULTS_TUNING / 'xgboost_baseline.pkl'),
                         help='Path to baseline model')
-    parser.add_argument('--tuned', type=Path, default='tuning_results/xgboost_best_model.pkl',
+    parser.add_argument('--tuned', type=Path, default=str(RESULTS_TUNING / 'xgboost_best_model.pkl'),
                         help='Path to tuned model')
-    parser.add_argument('--features', type=Path, default='data/processed/features.csv',
+    parser.add_argument('--features', type=Path, default=str(DATA_PROCESSED / 'features_train.csv'),
                         help='Path to features CSV')
-    parser.add_argument('--output-dir', type=Path, default='comparison_results',
+    parser.add_argument('--output-dir', type=Path, default=str(RESULTS_TUNING / 'comparison'),
                         help='Output directory for results')
     
     args = parser.parse_args()

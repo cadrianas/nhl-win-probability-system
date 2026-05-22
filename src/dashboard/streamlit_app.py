@@ -30,10 +30,9 @@ warnings.filterwarnings("ignore")
 # Path setup — same pattern as every other script in the project
 # ---------------------------------------------------------------------------
 
-SRC_PATH = Path(__file__).parent.parent.absolute()
-sys.path.insert(0, str(SRC_PATH))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from utils.paths import (
+from src.utils.paths import (
     DATA_PROCESSED,
     RESULTS_MODELS,
     ensure_directories,
