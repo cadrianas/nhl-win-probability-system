@@ -82,3 +82,7 @@ from src.utils.paths import DATA_PROCESSED, RESULTS_MODELS, ensure_directories
 
 ensure_directories()  # Call at the start of scripts
 ```
+
+*Note project is not finalised, the next step is integrating Snakefile and LSTM*
+
+*Note: Google Jules was used in this project*
