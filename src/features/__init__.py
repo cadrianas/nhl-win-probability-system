@@ -8,12 +8,12 @@ Main exports:
 - FeatureValidator: Validation class
 """
 
-from feature_engineer import (
+from .feature_engineer import (
     FeatureEngineer,
     quick_feature_engineering
 )
 
-from validate_features import (
+from .validate_features import (
     FeatureValidator,
     validate_features_file
 )

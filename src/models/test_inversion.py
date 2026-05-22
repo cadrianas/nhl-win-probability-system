@@ -6,8 +6,11 @@ import pandas as pd
 import numpy as np
 import pickle
 import sys
-sys.path.insert(0, 'src')
-from utils.paths import DATA_PROCESSED, RESULTS_MODELS
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.utils.paths import DATA_PROCESSED, RESULTS_MODELS, ensure_directories
+
+ensure_directories()
 
 print("=" * 70)
 print("INVERSION DIAGNOSTIC (V2 - Fixed dtype)")
@@ -15,7 +18,11 @@ print("=" * 70)
 
 # 1. Check target correlation with score_differential
 print("\n1. Training data correlation:")
-features_train = pd.read_csv(DATA_PROCESSED / 'features_train.csv', low_memory=False, nrows=10000)
+if not (DATA_PROCESSED / 'features_train.csv').exists():
+    print(f"   ⚠️  {DATA_PROCESSED / 'features_train.csv'} not found, skipping.")
+    features_train = pd.DataFrame()
+else:
+    features_train = pd.read_csv(DATA_PROCESSED / 'features_train.csv', low_memory=False, nrows=10000)
 
 # Convert to numeric
 for col in features_train.columns:
@@ -80,7 +87,11 @@ except Exception as e:
 # 3. Real data spot check
 print("\n3. Real game spot check:")
 try:
-    features_test = pd.read_csv(DATA_PROCESSED / 'features_test.csv', low_memory=False, nrows=2000)
+    if not (DATA_PROCESSED / 'features_test.csv').exists():
+        print(f"   ⚠️  {DATA_PROCESSED / 'features_test.csv'} not found, skipping.")
+        features_test = pd.DataFrame()
+    else:
+        features_test = pd.read_csv(DATA_PROCESSED / 'features_test.csv', low_memory=False, nrows=2000)
     
     # Convert to numeric
     for col in features_test.columns:

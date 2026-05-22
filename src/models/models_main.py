@@ -1,6 +1,6 @@
 """
 Phase 3: Baseline Models - Main Orchestrator
-Location: phase3_main.py
+Location: src/models/models_main.py
 
 Single entry point that:
 1. Loads Phase 2 features (features_train.csv, features_test.csv)
@@ -10,12 +10,12 @@ Single entry point that:
 5. Generates comparison reports
 
 Usage:
-    python models_main.py
+    python src/models/models_main.py
 
 Expected output:
-    - Trained models in phase3_models/models/
-    - Comparison metrics in phase3_models/results/
-    - Training logs in phase3_models/logs/
+    - Trained models in results/models/
+    - Comparison metrics in results/metrics/
+    - Training logs in results/logs/
 """
 
 import logging
@@ -26,29 +26,41 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import (
+    DATA_PROCESSED,
+    RESULTS_MODELS,
+    RESULTS_LOGS,
+    RESULTS_METRICS,
+    ensure_directories
+)
+
 # Import model training functions
-# (In production, update these import paths to match your project structure)
 try:
-    from baseline import train_logistic_regression, LogisticRegressionBaseline
-    from xgboost_model import train_xgboost, XGBoostModel
-    from lightgbm_model import train_lightgbm, LightGBMModel
-    from evaluate import ModelComparison, validate_model_performance, generate_report
+    from src.models.baseline import train_logistic_regression, LogisticRegressionBaseline
+    from src.models.xgboost_model import train_xgboost, XGBoostModel
+    from src.models.lightgbm_model import train_lightgbm, LightGBMModel
+    from src.models.evaluate import ModelComparison, validate_model_performance, generate_report
 except ImportError as e:
-    print(f"ERROR: Could not import model modules: {e}")
-    print("Make sure baseline.py, xgboost_model.py, lightgbm_model.py, and evaluate.py are in the same directory")
+    logger = logging.getLogger(__name__)
+    logger.error(f"ERROR: Could not import model modules: {e}")
     sys.exit(1)
 
 # ============================================================================
 # LOGGING SETUP
 # ============================================================================
 
+# Ensure directories exist
+ensure_directories()
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        # Uncomment to also log to file:
-        # logging.FileHandler('phase3_training.log')
+        logging.FileHandler(RESULTS_LOGS / 'phase3_training.log')
     ]
 )
 
@@ -59,18 +71,13 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 # Input paths (Phase 2 outputs)
-FEATURES_TRAIN_CSV = Path("data/processed/features_train.csv")
-FEATURES_TEST_CSV = Path("data/processed/features_test.csv")
+FEATURES_TRAIN_CSV = DATA_PROCESSED / "features_train.csv"
+FEATURES_TEST_CSV = DATA_PROCESSED / "features_test.csv"
 
 # Output paths
-OUTPUT_DIR = Path("phase3_models")
-MODELS_DIR = OUTPUT_DIR / "models"
-RESULTS_DIR = OUTPUT_DIR / "results"
-LOGS_DIR = OUTPUT_DIR / "logs"
-
-# Create directories
-for d in [OUTPUT_DIR, MODELS_DIR, RESULTS_DIR, LOGS_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
+MODELS_DIR = RESULTS_MODELS
+RESULTS_DIR = RESULTS_METRICS
+LOGS_DIR = RESULTS_LOGS
 
 # Model hyperparameters
 LOGISTIC_REGRESSION_PARAMS = {

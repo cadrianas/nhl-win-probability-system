@@ -5,7 +5,7 @@ Uses the project's centralized path management (src/utils/paths.py)
 to ensure compatibility with any working directory.
 
 Run from project root:
-    python src/calibration/phase5_calibration.py
+    python src/calibration/calibration.py
 """
 
 import pickle
@@ -21,12 +21,13 @@ from pathlib import Path
 import sys
 
 # Add src to path to import utilities
-SRC_PATH = Path(__file__).parent.parent.absolute()
-sys.path.insert(0, str(SRC_PATH))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from utils.paths import (
+from src.utils.paths import (
     DATA_PROCESSED,
     RESULTS_MODELS,
+    RESULTS_METRICS,
+    RESULTS_PLOTS,
     ensure_directories
 )
 
@@ -42,10 +43,10 @@ MODEL_PATH = RESULTS_MODELS / 'xgboost_best_model.pkl'
 FEATURES_TEST_PATH = DATA_PROCESSED / 'features_test.csv'
 
 # Output paths
-CALIBRATION_METRICS_PATH = RESULTS_MODELS / 'calibration_metrics.json'
-CALIBRATION_CONTEXT_PATH = RESULTS_MODELS / 'calibration_metrics_by_context.json'
-CALIBRATION_PLOT_PATH = RESULTS_MODELS / 'calibration_curves_comparison.png'
-CALIBRATION_ECE_PLOT_PATH = RESULTS_MODELS / 'calibration_error_metrics.png'
+CALIBRATION_METRICS_PATH = RESULTS_METRICS / 'calibration_metrics.json'
+CALIBRATION_CONTEXT_PATH = RESULTS_METRICS / 'calibration_metrics_by_context.json'
+CALIBRATION_PLOT_PATH = RESULTS_PLOTS / 'calibration_curves_comparison.png'
+CALIBRATION_ECE_PLOT_PATH = RESULTS_PLOTS / 'calibration_error_metrics.png'
 
 ISOTONIC_MODEL_PATH = RESULTS_MODELS / 'xgboost_calibrated_isotonic.pkl'
 SIGMOID_MODEL_PATH = RESULTS_MODELS / 'xgboost_calibrated_sigmoid.pkl'

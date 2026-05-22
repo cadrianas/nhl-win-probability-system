@@ -15,6 +15,12 @@ from pathlib import Path
 from typing import Tuple, Dict, List, Union
 import json
 from datetime import datetime
+import sys
+
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED, RESULTS_PHASE2, ensure_directories
 
 
 class FeatureEngineer:
@@ -412,9 +418,10 @@ def quick_feature_engineering(
 
 if __name__ == '__main__':
     # Example usage
+    ensure_directories()
     results = quick_feature_engineering(
-        'data/processed/game_states.parquet',
-        'data/processed',
+        DATA_PROCESSED / 'game_states.parquet',
+        DATA_PROCESSED,
         split_season=2024
     )
     print("\n✅ Phase 2 Complete!")

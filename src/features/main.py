@@ -5,10 +5,10 @@ Phase 2: Main Orchestration Script
 One-command execution of complete feature engineering pipeline.
 
 Usage:
-    python phase2_main.py
+    python src/features/main.py
 
 Or with custom paths:
-    python phase2_main.py \
+    python src/features/main.py \
         --input data/processed/game_states.parquet \
         --output data/processed \
         --split-season 2024 \
@@ -21,8 +21,13 @@ from pathlib import Path
 from datetime import datetime
 import json
 
+# Ensure project root is on path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from src.utils.paths import DATA_PROCESSED, RESULTS_PHASE2, PROJECT_ROOT, ensure_directories
+
 # Import feature engineer
-from feature_engineer import FeatureEngineer, quick_feature_engineering
+from src.features.feature_engineer import FeatureEngineer, quick_feature_engineering
 
 
 def setup_paths(config: dict = None) -> dict:
@@ -34,13 +39,10 @@ def setup_paths(config: dict = None) -> dict:
     """
     config = config or {}
     
-    # Define paths
-    project_root = Path.cwd()
-    data_dir = project_root / 'data' / 'processed'
-    results_dir = project_root / 'results' / 'phase2'
+    ensure_directories()
     
-    input_file = config.get('input') or (data_dir / 'game_states.parquet')
-    output_dir = config.get('output') or data_dir
+    input_file = config.get('input') or (DATA_PROCESSED / 'game_states.parquet')
+    output_dir = config.get('output') or DATA_PROCESSED
     
     # Validate input exists
     if not Path(input_file).exists():
@@ -48,13 +50,13 @@ def setup_paths(config: dict = None) -> dict:
     
     # Create output directories
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    results_dir.mkdir(parents=True, exist_ok=True)
+    RESULTS_PHASE2.mkdir(parents=True, exist_ok=True)
     
     paths = {
-        'project_root': project_root,
+        'project_root': PROJECT_ROOT,
         'input_file': Path(input_file),
         'output_dir': Path(output_dir),
-        'results_dir': results_dir,
+        'results_dir': RESULTS_PHASE2,
     }
     
     return paths
@@ -100,23 +102,23 @@ def main(args=None):
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python phase2_main.py
-  python phase2_main.py --input data/raw/states.parquet --output data/features
-  python phase2_main.py --split-season 2023 --format parquet
+  python src/features/main.py
+  python src/features/main.py --input data/processed/game_states.parquet --output data/processed
+  python src/features/main.py --split-season 2023 --format parquet
         """
     )
     
     parser.add_argument(
         '--input',
         type=str,
-        default='data/processed/game_states.parquet',
+        default=str(DATA_PROCESSED / 'game_states.parquet'),
         help='Path to game_states.parquet'
     )
     
     parser.add_argument(
         '--output',
         type=str,
-        default='data/processed',
+        default=str(DATA_PROCESSED),
         help='Output directory for feature files'
     )
     
